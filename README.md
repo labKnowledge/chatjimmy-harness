@@ -13,7 +13,7 @@ cd chatjimmy-harness
 uv tool install -e .
 # ensure ~/.local/bin is on PATH
 cj doctor
-cj "hi"
+cj -p "hi"
 ```
 
 Full install / update / uninstall: [docs/install.md](docs/install.md)
@@ -22,15 +22,15 @@ Full install / update / uninstall: [docs/install.md](docs/install.md)
 
 ```bash
 cj doctor
-cj "Explain recursion in one sentence." --stats
-cj agent "list files and summarize README" -w .
+cj                                 # interactive agent (default)
+cj -p "Explain recursion." --stats # one-shot print
+cj agent "list files" -w .         # one-shot tool task
 cj tools
 chatjimmy run examples/smoke.json -o results.json
-chatjimmy run examples/agent_tools.json
 chatjimmy bench "Say hi in three words." -n 5
 ```
 
-Aliases: `chatjimmy`, `cj`, `cjh` — bare prompts work: `cj "What is 2+2?"`
+Aliases: `chatjimmy`, `cj`, `cjh` · versioning: [docs/versioning.md](docs/versioning.md) (`0.0.N`, major +5)
 
 ## Documentation
 
@@ -46,6 +46,7 @@ Aliases: `chatjimmy`, `cj`, `cjh` — bare prompts work: `cj "What is 2+2?"`
 | [docs/architecture.md](docs/architecture.md) | Layout + HTTP protocol |
 | [docs/limits.md](docs/limits.md) | Caps and caveats |
 | [docs/dev.md](docs/dev.md) | Develop this repo |
+| [docs/versioning.md](docs/versioning.md) | `0.0.N` (+1 / +5) |
 
 ## License
 

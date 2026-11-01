@@ -33,14 +33,20 @@ uv tool install -e .
 uv tool install --force -e .
 ```
 
+## Versioning
+
+See [versioning.md](versioning.md): stay on `0.0.N`; small = +1, major = +5; `N` goes past 9 to 99.
+
 ## UX contracts to preserve
 
-1. **Bare prompt** — `cj "What is 2+2?"` must work (rewritten to `ask`). Do not require a subcommand for the happy path.
-2. **stdin** — `cj ask -` and piped input must work.
-3. **doctor** — one command answers “is this machine + API ready?”
-4. **Stats on stderr** — keep stdout clean for pipes; `--stats` / `CHATJIMMY_STATS=1` print HC1 tables on stderr.
-5. **Exit codes** — `health` / `run` / `bench` / `doctor` / `agent` use `0`/`1` for automation.
-6. **Workspace jail** — tools must not read/write outside `--workspace`.
+1. **`cj` alone** — starts the interactive agent REPL (not help text).
+2. **`-p` / `--print`** — one-shot print answer (`cj -p "What is 2+2?"`).
+3. **Bare prompt** — `cj "What is 2+2?"` still works (rewritten to `ask`).
+4. **stdin** — `cj ask -` / `cj -p -` style flows must work where documented.
+5. **doctor** — one command answers “is this machine + API ready?”
+6. **Stats on stderr** — keep stdout clean for pipes.
+7. **Exit codes** — `health` / `run` / `bench` / `doctor` / `agent` use `0`/`1`.
+8. **Workspace jail** — tools must not read/write outside `--workspace`.
 
 ## Tests
 
@@ -52,13 +58,13 @@ Prefer pure unit tests for `check_case`, `load_suite`, `_iter_chat_chunks`, and 
 
 ```bash
 cj doctor
-cj "Reply with exactly: pong"
+cj -p "Reply with exactly: pong"
 chatjimmy run examples/smoke.json
 ```
 
 ## Release checklist
 
-1. Bump version in `pyproject.toml` and `src/chatjimmy_harness/__init__.py`
+1. Bump version per [versioning.md](versioning.md) (`pyproject.toml`, `__init__.py`, User-Agent)
 2. Update docs if CLI surface changed
 3. `uv run pytest`
 4. `uv tool install --force -e .` and `cj doctor`

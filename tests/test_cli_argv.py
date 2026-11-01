@@ -35,3 +35,15 @@ def test_rewrite_noop_on_help(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["cj", "--help"])
     _rewrite_bare_prompt_argv()
     assert sys.argv == ["cj", "--help"]
+
+
+def test_rewrite_noop_on_print_flag(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["cj", "-p", "What is 2+2?"])
+    _rewrite_bare_prompt_argv()
+    assert sys.argv == ["cj", "-p", "What is 2+2?"]
+
+
+def test_rewrite_noop_when_empty(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["cj"])
+    _rewrite_bare_prompt_argv()
+    assert sys.argv == ["cj"]

@@ -5,11 +5,27 @@ ChatJimmy has no native function-calling API. The harness adds a **local tool lo
 ## Quick start
 
 ```bash
+cj                                # interactive agent REPL (default)
+cj -w examples/workspaces/hello_bug
+cj -p "What is 2+2?"              # one-shot print (no tools)
 cj tools                          # list tools
-cj agent "list files here" -w .
-cj agent "read README.md and summarize it in one sentence" -w .
-cj agent "fix the add() bug and run pytest" -w examples/workspaces/hello_bug
+cj agent "list files here" -w .   # one-shot tool task
+cj agent -i "list files" -w .     # one task, then stay in agent REPL
 ```
+
+### Interactive REPL
+
+`cj` (or `cj agent`) opens a multi-turn session. Each message runs a tool loop; conversation history (including prior tool results) is kept.
+
+| Slash command | Action |
+|---------------|--------|
+| `/reset` | Clear history |
+| `/tools` | Show enabled tools |
+| `/workspace <path>` | Switch sandbox root |
+| `/system <text>` | Set extra system prompt |
+| `/max-turns <n>` | Cap tool-loop turns per message |
+| `/help` | List commands |
+| `/exit` | Quit |
 
 ## Built-in tools
 

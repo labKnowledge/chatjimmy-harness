@@ -40,7 +40,8 @@ Verify:
 ```bash
 which chatjimmy cj
 cj doctor
-cj "hi"
+cj -p "hi"
+# cj   # opens interactive agent
 ```
 
 If `command not found`, ensure `~/.local/bin` is on `PATH` (see above), then open a new terminal or `source ~/.bashrc`.

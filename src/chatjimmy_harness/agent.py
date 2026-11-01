@@ -60,6 +60,7 @@ class AgentResult:
     tool_calls: int = 0
     finished: bool = False
     error: str | None = None
+    messages: list[dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +69,7 @@ class AgentResult:
             "tool_calls": self.tool_calls,
             "finished": self.finished,
             "error": self.error,
+            "messages": self.messages,
             "steps": [
                 {
                     "kind": s.kind,
@@ -172,6 +174,7 @@ def run_agent(
             )
         except Exception as exc:  # noqa: BLE001
             result.error = str(exc)
+            result.messages = history
             return result
 
         text = (resp.text or "").strip()
@@ -192,6 +195,7 @@ def run_agent(
         if call is None:
             result.finished = True
             result.text = text
+            result.messages = history
             return result
 
         result.tool_calls += 1
@@ -232,4 +236,5 @@ def run_agent(
 
     result.text = final_text
     result.error = f"stopped after max_turns={max_turns}"
+    result.messages = history
     return result

@@ -37,8 +37,8 @@ COMMANDS = frozenset(
 
 app = typer.Typer(
     name="chatjimmy",
-    help='Ask, chat, agent tools, eval — try: cj "What is 2+2?"  or  cj agent "list files"',
-    no_args_is_help=True,
+    help='Interactive agent by default. Print one-shot with -p. Try: cj   or   cj -p "What is 2+2?"',
+    no_args_is_help=False,
     add_completion=True,
     rich_markup_mode="rich",
 )
@@ -162,7 +162,7 @@ def _run_ask(
 
 
 def _rewrite_bare_prompt_argv() -> None:
-    """`cj "hello"` → `cj ask "hello"` so the common path needs no subcommand."""
+    """`cj "hello"` → `cj ask "hello"` (print). Empty args stay empty → interactive agent."""
     args = sys.argv[1:]
     if not args:
         return
@@ -172,15 +172,27 @@ def _rewrite_bare_prompt_argv() -> None:
         a = args[i]
         if a in {"-h", "--help"}:
             return
+        if a in {"-p", "--print"}:
+            # value belongs to print mode; do not rewrite into ask
+            if i + 1 < len(args):
+                return
+            return
+        if a.startswith("--print="):
+            return
         if a.startswith("--"):
-            if a in {"--base-url", "--timeout"} and i + 1 < len(args):
+            if a in {"--base-url", "--timeout", "--workspace", "-w"} and i + 1 < len(args):
                 i += 2
+                continue
+            if a.split("=", 1)[0] in {"--base-url", "--timeout", "--workspace"}:
+                i += 1
                 continue
             if "=" in a:
                 i += 1
                 continue
-            # unknown long opt — leave alone
             i += 1
+            continue
+        if a in {"-w"}:
+            i += 2 if i + 1 < len(args) else 1
             continue
         if a.startswith("-") and a != "-":
             i += 1
@@ -191,7 +203,7 @@ def _rewrite_bare_prompt_argv() -> None:
         return
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
     base_url: str = typer.Option(
@@ -206,10 +218,65 @@ def main(
         envvar="CHATJIMMY_TIMEOUT",
         help="HTTP timeout in seconds",
     ),
+    print_prompt: Optional[str] = typer.Option(
+        None,
+        "--print",
+        "-p",
+        help="One-shot print mode (non-interactive ask). Example: cj -p \"What is 2+2?\"",
+    ),
+    workspace: Path = typer.Option(
+        Path("."),
+        "--workspace",
+        "-w",
+        exists=True,
+        file_okay=False,
+        help="Workspace for the default interactive agent",
+    ),
+    stats: bool = typer.Option(
+        False,
+        "--stats",
+        help="Show HC1 stats with -p print mode",
+    ),
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["base_url"] = base_url
     ctx.obj["timeout"] = timeout
+    ctx.obj["workspace"] = workspace.resolve()
+
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # cj -p "…" → print one-shot answer
+    if print_prompt is not None:
+        _run_ask(
+            base_url=base_url,
+            timeout=timeout,
+            prompt=print_prompt,
+            model=DEFAULT_MODEL,
+            system="",
+            top_k=8,
+            stream=True,
+            stats=stats,
+            attach=None,
+            json_out=False,
+        )
+        raise typer.Exit(0)
+
+    # cj → interactive agent REPL
+    client = _client(base_url, timeout)
+    _run_agent_repl(
+        client=client,
+        workspace=workspace.resolve(),
+        tools=list(DEFAULT_TOOL_NAMES),
+        system="",
+        model=DEFAULT_MODEL,
+        top_k=8,
+        max_turns=8,
+        allow_shell=True,
+        command_timeout_s=30.0,
+        first_prompt="",
+    )
+    raise typer.Exit(0)
 
 
 @app.command("version")
@@ -263,8 +330,8 @@ def doctor(ctx: typer.Context) -> None:
         ok = False
         console.print(f"[red]✗[/red] models: {exc}")
 
-    console.print('[dim]try:[/dim] cj "What is 2+2?"')
-    console.print('[dim]     [/dim] cj agent "list the files here"')
+    console.print("[dim]try:[/dim] cj")
+    console.print('[dim]     [/dim] cj -p "What is 2+2?"')
     console.print("[dim]     [/dim] chatjimmy run examples/smoke.json")
     raise typer.Exit(0 if ok else 1)
 
@@ -416,12 +483,148 @@ def chat(
             _print_stats(resp.stats)
 
 
+def _agent_on_step(*, quiet: bool, json_out: bool):
+    from chatjimmy_harness.agent import parse_tool_call
+
+    printed_final = False
+
+    def on_step(step) -> None:
+        nonlocal printed_final
+        if quiet or json_out:
+            return
+        if step.kind == "assistant":
+            call = parse_tool_call(step.text)
+            if call:
+                args_s = ", ".join(f"{k}={v!r}" for k, v in call.args.items())
+                if len(args_s) > 80:
+                    args_s = args_s[:77] + "..."
+                err_console.print(f"[magenta]tool_call[/magenta] {call.name}({args_s})")
+            else:
+                console.print("[bold magenta]jimmy>[/bold magenta] ", end="")
+                console.print(step.text, markup=False, soft_wrap=True)
+                printed_final = True
+        elif step.kind == "tool":
+            status = "[green]ok[/green]" if step.ok else "[red]err[/red]"
+            preview = (step.result or "").replace("\n", " ")[:120]
+            err_console.print(f"  {status} [cyan]{step.tool}[/cyan] {preview}")
+
+    return on_step, lambda: printed_final
+
+
+def _run_agent_repl(
+    *,
+    client: ChatJimmy,
+    workspace: Path,
+    tools: list[str],
+    system: str,
+    model: str,
+    top_k: int,
+    max_turns: int,
+    allow_shell: bool,
+    command_timeout_s: float,
+    first_prompt: str = "",
+) -> None:
+    history: list[dict[str, str]] = []
+    system_prompt = system
+    ws = workspace.resolve()
+    turns_cap = max_turns
+
+    console.print(
+        Panel.fit(
+            f"[bold]chatjimmy agent[/bold]  model={model}  workspace={ws}\n"
+            "message  ·  /reset  /tools  /workspace <path>  /system …  "
+            "/max-turns N  /exit",
+            border_style="magenta",
+        )
+    )
+
+    pending = first_prompt.strip()
+
+    while True:
+        if pending:
+            user = pending
+            pending = ""
+        else:
+            try:
+                user = console.input("[bold cyan]you>[/bold cyan] ").strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print()
+                break
+
+        if not user:
+            continue
+        if user in {"/exit", "/quit", ":q"}:
+            break
+        if user == "/reset":
+            history.clear()
+            console.print("[dim]history cleared[/dim]")
+            continue
+        if user == "/tools":
+            from chatjimmy_harness.tools import build_registry, tool_specs_prompt
+
+            console.print(tool_specs_prompt(build_registry(tools)))
+            continue
+        if user == "/help":
+            console.print(
+                "/reset  /tools  /workspace <path>  /system <text>  "
+                "/max-turns <n>  /exit"
+            )
+            continue
+        if user.startswith("/workspace"):
+            raw = user[len("/workspace") :].strip() or "."
+            path = Path(raw).expanduser()
+            if not path.exists() or not path.is_dir():
+                err_console.print(f"[red]not a directory:[/red] {path}")
+                continue
+            ws = path.resolve()
+            console.print(f"[dim]workspace={ws}[/dim]")
+            continue
+        if user.startswith("/system"):
+            system_prompt = user[len("/system") :].strip()
+            console.print(f"[dim]system prompt set ({len(system_prompt)} chars)[/dim]")
+            continue
+        if user.startswith("/max-turns"):
+            raw = user[len("/max-turns") :].strip()
+            try:
+                turns_cap = max(1, int(raw))
+            except ValueError:
+                err_console.print("[red]usage:[/red] /max-turns 8")
+                continue
+            console.print(f"[dim]max_turns={turns_cap}[/dim]")
+            continue
+        if user.startswith("/"):
+            err_console.print(f"[dim]unknown command:[/dim] {user}  (try /help)")
+            continue
+
+        on_step, _printed = _agent_on_step(quiet=False, json_out=False)
+        result = run_agent(
+            client,
+            user,
+            workspace=ws,
+            tools=tools,
+            system_prompt=system_prompt,
+            model=model,
+            top_k=top_k,
+            max_turns=turns_cap,
+            allow_shell=allow_shell,
+            command_timeout_s=command_timeout_s,
+            on_step=on_step,
+            messages=history,
+        )
+        history = list(result.messages)
+        if result.error:
+            err_console.print(f"[yellow]{result.error}[/yellow]")
+        err_console.print(
+            f"[dim]turns={result.turns} tools={result.tool_calls} msgs={len(history)}[/dim]"
+        )
+
+
 @app.command()
 def agent(
     ctx: typer.Context,
     prompt: str = typer.Argument(
         "",
-        help='Task for the tool-using agent (or "-" for stdin)',
+        help='Task (optional). Empty starts interactive REPL. Use "-" for stdin.',
     ),
     workspace: Path = typer.Option(
         Path("."),
@@ -447,45 +650,53 @@ def agent(
     timeout_cmd: float = typer.Option(
         30.0, "--cmd-timeout", help="Timeout for shell/python tools (seconds)"
     ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        "-i",
+        help="Multi-turn REPL (default when no prompt). Keeps history across tasks.",
+    ),
     json_out: bool = typer.Option(False, "--json"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only print final answer"),
 ) -> None:
-    """Tool-using agent: read/write files, search, shell, Python."""
+    """Tool-using agent. No prompt → interactive REPL; with prompt → one shot (or -i)."""
     from chatjimmy_harness.agent import parse_tool_call
 
-    prompt = _resolve_prompt(prompt)
-    if not prompt.strip():
-        err_console.print(
-            '[red]need a task[/red] — try: cj agent "list files and summarize README"'
-        )
-        raise typer.Exit(2)
+    # Only pull stdin as the task when explicitly "-" (keep stdin free for the REPL).
+    if prompt == "-":
+        prompt = _resolve_prompt("-")
 
     client = _client(ctx.obj["base_url"], ctx.obj["timeout"])
     tools = tool if tool else list(DEFAULT_TOOL_NAMES)
     if no_shell:
         tools = [t for t in tools if t not in {"run_shell", "run_python"}]
 
-    printed_final = False
+    use_repl = interactive or (not prompt.strip() and not json_out)
+    if use_repl:
+        if json_out:
+            err_console.print("[red]--json is for one-shot agent runs[/red]")
+            raise typer.Exit(2)
+        _run_agent_repl(
+            client=client,
+            workspace=workspace,
+            tools=tools,
+            system=system,
+            model=model,
+            top_k=top_k,
+            max_turns=max_turns,
+            allow_shell=not no_shell,
+            command_timeout_s=timeout_cmd,
+            first_prompt=prompt,
+        )
+        return
 
-    def on_step(step) -> None:
-        nonlocal printed_final
-        if quiet or json_out:
-            return
-        if step.kind == "assistant":
-            call = parse_tool_call(step.text)
-            if call:
-                args_s = ", ".join(f"{k}={v!r}" for k, v in call.args.items())
-                if len(args_s) > 80:
-                    args_s = args_s[:77] + "..."
-                err_console.print(f"[magenta]tool_call[/magenta] {call.name}({args_s})")
-            else:
-                console.print(step.text, markup=False, soft_wrap=True)
-                printed_final = True
-        elif step.kind == "tool":
-            status = "[green]ok[/green]" if step.ok else "[red]err[/red]"
-            preview = (step.result or "").replace("\n", " ")[:120]
-            err_console.print(f"  {status} [cyan]{step.tool}[/cyan] {preview}")
+    if not prompt.strip():
+        err_console.print(
+            '[red]need a task[/red] — try: cj agent "list files"  or  cj agent -i'
+        )
+        raise typer.Exit(2)
 
+    on_step, printed_final = _agent_on_step(quiet=quiet, json_out=json_out)
     result = run_agent(
         client,
         prompt,
@@ -504,7 +715,7 @@ def agent(
         console.print_json(data=result.to_dict())
         raise typer.Exit(0 if result.finished and not result.error else 1)
 
-    if (quiet or not printed_final) and result.text:
+    if (quiet or not printed_final()) and result.text:
         if quiet or parse_tool_call(result.text) is None:
             console.print(result.text, markup=False, soft_wrap=True)
 

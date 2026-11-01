@@ -3,24 +3,26 @@
 Entry points: `chatjimmy`, `cj`, `cjh` (identical).
 
 ```bash
+cj                              # interactive agent (default)
+cj -p "What is 2+2?"            # one-shot print
+cj "What is 2+2?"               # print via ask rewrite
 chatjimmy [GLOBAL OPTIONS] COMMAND [ARGS]...
-
-# shortest path — bare prompt becomes `ask`:
-cj "What is 2+2?"
-echo "Say hi" | cj ask -
 ```
 
 ## Global options
 
-Placed **before** the subcommand:
+Placed **before** the subcommand (also used when `cj` has no subcommand):
 
 | Option | Env | Default | Description |
 |--------|-----|---------|-------------|
+| `-p` / `--print` | | | One-shot print prompt (skips REPL) |
+| `-w` / `--workspace` | | `.` | Workspace for default interactive agent |
+| `--stats` | | | With `-p`, print HC1 stats |
 | `--base-url` | `CHATJIMMY_BASE_URL` | `https://chatjimmy.ai` | API origin |
 | `--timeout` | `CHATJIMMY_TIMEOUT` | `60` | Request timeout (seconds) |
 | `--help` | | | Show help |
 
-Related env (command-level): `CHATJIMMY_STATS=1` turns on HC1 stats for `ask` / `chat` without `--stats`.
+Related env: `CHATJIMMY_STATS=1` turns on HC1 stats for `ask` / `chat` without `--stats`.
 
 Example:
 
@@ -63,21 +65,29 @@ cj tools
 
 ## `agent`
 
-Multi-turn tool-using agent. See [agent.md](agent.md).
+Tool-using agent. See [agent.md](agent.md).
+
+- No prompt → **interactive REPL** (history kept across messages)
+- With prompt → one-shot (add `-i` to continue in the REPL after)
 
 ```bash
+cj agent
+cj agent -w . -i
 cj agent "list files here" -w .
-cj agent "fix mathutil.add and run pytest" -w examples/workspaces/hello_bug
+cj agent -i "list files" -w .
 ```
 
 | Option | Description |
 |--------|-------------|
+| `-i` / `--interactive` | Multi-turn REPL (default when prompt is empty) |
 | `-w` / `--workspace` | Sandbox root for tools |
 | `-t` / `--tool` | Enable specific tools (repeatable) |
-| `--max-turns` | Max model↔tool iterations |
+| `--max-turns` | Max model↔tool iterations per user message |
 | `--no-shell` | Disable shell/python tools |
 | `--cmd-timeout` | Exec timeout |
-| `--json` / `-q` | Machine output / quiet final answer |
+| `--json` / `-q` | One-shot machine / quiet output |
+
+REPL slash commands: `/reset` `/tools` `/workspace` `/system` `/max-turns` `/help` `/exit`
 
 ---
 

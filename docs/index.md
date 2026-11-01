@@ -17,26 +17,27 @@ Client protocol adapted from [0xMH/chatjimmy-api](https://github.com/0xMH/chatji
 | [limits.md](limits.md) | Auth, rate limits, token caps, known quirks |
 | [agent.md](agent.md) | Tool-using agent (files, shell, code, search) |
 | [dev.md](dev.md) | Develop / test / release this repo |
+| [versioning.md](versioning.md) | `0.0.N` bumps (+1 / +5) |
 
 ## Quick start
 
 ```bash
 # after install (see install.md)
 cj doctor
-cj "Explain recursion in one sentence." --stats
-cj agent "list files and read README.md" -w .
+cj                          # interactive agent REPL
+cj -p "Explain recursion."  # one-shot print
 chatjimmy run examples/smoke.json -o results.json
 chatjimmy bench -n 5
 ```
-
-Bare prompts work — no subcommand required: `cj "What is 2+2?"`
 
 ## Commands at a glance
 
 | Command | Purpose |
 |---------|---------|
-| `cj "…"` / `chatjimmy ask …` | Single-turn (streams by default); stdin via `-` |
-| `cj agent "…"` | Tool loop: read/write/edit/search/shell/python |
+| `cj` | Interactive agent REPL (default) |
+| `cj -p "…"` | One-shot print (no tools loop) |
+| `cj "…"` / `ask` | Same as print via ask rewrite |
+| `cj agent` / `cj agent "…"` | Explicit agent REPL or one-shot tool loop |
 | `cj tools` | List built-in tools |
 | `chatjimmy doctor` | PATH + API readiness in one shot |
 | `chatjimmy health` | Probe API + HC1 backend |
