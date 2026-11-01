@@ -1,0 +1,24 @@
+{
+  "name": "smoke",
+  "system_prompt": "Answer briefly and precisely.",
+  "model": "llama3.1-8B",
+  "top_k": 8,
+  "cases": [
+    {
+      "id": "capital-france",
+      "prompt": "What is the capital of France? Reply with one word.",
+      "expect_contains": ["Paris"],
+      "max_chars": 200
+    },
+    {
+      "id": "arithmetic",
+      "prompt": "What is 17 * 3? Reply with only the number.",
+      "expect_contains": ["51"]
+    },
+    {
+      "id": "non-empty",
+      "prompt": "Say hello in one short sentence.",
+      "min_chars": 5
+    }
+  ]
+}

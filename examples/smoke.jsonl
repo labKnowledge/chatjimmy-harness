@@ -1,0 +1,2 @@
+{"id": "haiku", "prompt": "Write a one-line haiku about chips.", "min_chars": 10}
+{"id": "json-ish", "prompt": "Reply with exactly: ok", "expect_contains": ["ok"]}

@@ -1,0 +1,35 @@
+{
+  "name": "agent-tools",
+  "agent": true,
+  "max_turns": 10,
+  "workspace": "workspaces/hello_bug",
+  "system_prompt": "You are a careful coding agent. Use tools. Keep answers short when done.",
+  "tools": [
+    "list_dir",
+    "read_file",
+    "write_file",
+    "str_replace",
+    "grep",
+    "glob",
+    "run_shell",
+    "run_python"
+  ],
+  "cases": [
+    {
+      "id": "list-and-read",
+      "prompt": "List the workspace files, read README.md, and reply with the project name from the README title.",
+      "min_tool_calls": 1,
+      "expect_contains": ["hello_bug"]
+    },
+    {
+      "id": "fix-add",
+      "prompt": "mathutil.add is broken. Read the file, fix the bug with str_replace or write_file, then run: python -m pytest test_mathutil.py -q. When tests pass, say FIXED.",
+      "min_tool_calls": 2,
+      "expect_contains": ["FIXED"],
+      "expect_file_contains": [
+        {"path": "mathutil.py", "contains": "return a + b"}
+      ],
+      "allow_max_turns": true
+    }
+  ]
+}
