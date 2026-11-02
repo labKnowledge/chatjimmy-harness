@@ -16,6 +16,7 @@ from rich.table import Table
 from chatjimmy_harness import __version__
 from chatjimmy_harness.agent import run_agent
 from chatjimmy_harness.client import Attachment, ChatJimmy, DEFAULT_MODEL
+from chatjimmy_harness.display import print_assistant, stream_assistant
 from chatjimmy_harness.harness import load_suite, run_bench, run_suite
 from chatjimmy_harness.tools import DEFAULT_TOOL_NAMES
 
@@ -128,14 +129,7 @@ def _run_ask(
             top_k=top_k,
             attachment=attachment,
         )
-        resp = None
-        try:
-            while True:
-                chunk = next(gen)
-                console.print(chunk, end="", markup=False, soft_wrap=True)
-        except StopIteration as stop:
-            resp = stop.value
-        console.print()
+        _text, resp = stream_assistant(console, gen)
         if show_stats:
             _print_stats(resp.stats if resp else None)
         return
@@ -156,7 +150,7 @@ def _run_ask(
         )
         return
 
-    console.print(resp.text, markup=False, soft_wrap=True)
+    print_assistant(console, resp.text)
     if show_stats:
         _print_stats(resp.stats)
 
@@ -458,30 +452,21 @@ def chat(
             continue
 
         messages.append({"role": "user", "content": user})
-        console.print("[bold magenta]jimmy>[/bold magenta] ", end="")
+        console.print("[bold magenta]jimmy>[/bold magenta]")
         gen = client.chat_stream(
             messages=messages,
             model=model,
             system_prompt=system_prompt,
             top_k=top_k,
         )
-        parts: list[str] = []
-        resp = None
         try:
-            while True:
-                chunk = next(gen)
-                parts.append(chunk)
-                console.print(chunk, end="", markup=False, soft_wrap=True)
-        except StopIteration as stop:
-            resp = stop.value
+            streamed, resp = stream_assistant(console, gen)
         except Exception as exc:  # noqa: BLE001
             messages.pop()
-            console.print()
             err_console.print(f"[red]error:[/red] {exc}")
             continue
-        console.print()
 
-        text = resp.text if resp else "".join(parts)
+        text = resp.text if resp else streamed
         messages.append({"role": "assistant", "content": text})
         if show_stats and resp is not None:
             _print_stats(resp.stats)
@@ -504,8 +489,8 @@ def _agent_on_step(*, quiet: bool, json_out: bool):
                     args_s = args_s[:77] + "..."
                 err_console.print(f"[magenta]tool_call[/magenta] {call.name}({args_s})")
             else:
-                console.print("[bold magenta]jimmy>[/bold magenta] ", end="")
-                console.print(step.text, markup=False, soft_wrap=True)
+                console.print("[bold magenta]jimmy>[/bold magenta]")
+                print_assistant(console, step.text)
                 printed_final = True
         elif step.kind == "tool":
             status = "[green]ok[/green]" if step.ok else "[red]err[/red]"
@@ -766,7 +751,7 @@ def agent(
 
     if (quiet or not printed_final()) and result.text:
         if quiet or parse_tool_call(result.text) is None:
-            console.print(result.text, markup=False, soft_wrap=True)
+            print_assistant(console, result.text)
 
     if result.error:
         err_console.print(f"[yellow]{result.error}[/yellow]")

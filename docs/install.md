@@ -85,6 +85,8 @@ To expose commands without activating the venv, install with pip’s user scheme
 |----------|---------|---------|
 | `CHATJIMMY_BASE_URL` | `https://chatjimmy.ai` | API base URL |
 | `CHATJIMMY_TIMEOUT` | `60` | HTTP timeout (seconds) |
+| `CHATJIMMY_PLAIN` | off | Print assistant replies as raw text |
+| `CHATJIMMY_MARKDOWN` | `1` | Set `0` to disable Markdown rendering |
 
 Same values can be passed as global CLI flags: `--base-url`, `--timeout`.
 

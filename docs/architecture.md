@@ -14,6 +14,7 @@ chatjimmy-harness/
 │   ├── agent.py               # tool-call parse + agent loop (core)
 │   ├── harness.py             # suite/bench domain logic
 │   ├── tools/                 # local tool adapters (fs, edit, search, exec)
+│   ├── display.py             # Markdown / live terminal rendering
 │   └── cli.py                 # Typer UI adapter
 ├── tests/
 └── pyproject.toml
@@ -86,4 +87,5 @@ CLI (cli.py)
 - **Capability is configuration** — budgets, modes, compaction, and repair live in `config` / `instructions` / `context`; see [harness.md](harness.md).
 - **Bare prompt** — `cli._rewrite_bare_prompt_argv` inserts `ask` when the first positional is not a known command.
 - **Stats on stderr** — `--stats` / `CHATJIMMY_STATS` print HC1 tables on stderr so piped stdout stays clean.
+- **Markdown on stdout** — `display.py` renders assistant replies with Rich Markdown in a TTY (live during streams); `CHATJIMMY_PLAIN=1` keeps raw text.
 - **Suite checks** — intentionally simple (substring / length); extend `harness.check_case`.

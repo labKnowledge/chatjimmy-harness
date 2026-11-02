@@ -22,7 +22,13 @@ Placed **before** the subcommand (also used when `cj` has no subcommand):
 | `--timeout` | `CHATJIMMY_TIMEOUT` | `60` | Request timeout (seconds) |
 | `--help` | | | Show help |
 
-Related env: `CHATJIMMY_STATS=1` turns on HC1 stats for `ask` / `chat` without `--stats`.
+Related env:
+
+- `CHATJIMMY_STATS=1` — HC1 stats for `ask` / `chat` without `--stats`
+- `CHATJIMMY_PLAIN=1` — print assistant replies as raw text (no Markdown)
+- `CHATJIMMY_MARKDOWN=0` — same as plain (Markdown is on by default in a TTY)
+
+Assistant replies (`ask`, `chat`, `agent`, `-p`) render Markdown in the terminal: headings, lists, emphasis, and fenced code blocks. Piped / non-TTY output stays plain.
 
 Example:
 
