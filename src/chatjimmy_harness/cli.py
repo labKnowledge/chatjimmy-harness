@@ -263,6 +263,9 @@ def main(
         raise typer.Exit(0)
 
     # cj → interactive agent REPL
+    from chatjimmy_harness.config import HarnessConfig, config_from_env
+
+    cfg = config_from_env(HarnessConfig())
     client = _client(base_url, timeout)
     _run_agent_repl(
         client=client,
@@ -271,10 +274,11 @@ def main(
         system="",
         model=DEFAULT_MODEL,
         top_k=8,
-        max_turns=8,
+        max_turns=cfg.max_turns,
         allow_shell=True,
         command_timeout_s=30.0,
         first_prompt="",
+        mode=cfg.interaction_mode,
     )
     raise typer.Exit(0)
 
@@ -507,6 +511,10 @@ def _agent_on_step(*, quiet: bool, json_out: bool):
             status = "[green]ok[/green]" if step.ok else "[red]err[/red]"
             preview = (step.result or "").replace("\n", " ")[:120]
             err_console.print(f"  {status} [cyan]{step.tool}[/cyan] {preview}")
+        elif step.kind == "repair":
+            err_console.print("[yellow]repair[/yellow] format nudge")
+        elif step.kind == "compact":
+            err_console.print(f"[dim]compact[/dim] {step.text}")
 
     return on_step, lambda: printed_final
 
@@ -523,17 +531,22 @@ def _run_agent_repl(
     allow_shell: bool,
     command_timeout_s: float,
     first_prompt: str = "",
+    mode: str = "act",
 ) -> None:
+    from chatjimmy_harness.config import HarnessConfig, config_from_env
+
     history: list[dict[str, str]] = []
     system_prompt = system
     ws = workspace.resolve()
     turns_cap = max_turns
+    interaction_mode = mode if mode in {"act", "plan"} else "act"
 
     console.print(
         Panel.fit(
-            f"[bold]chatjimmy agent[/bold]  model={model}  workspace={ws}\n"
-            "message  ·  /reset  /tools  /workspace <path>  /system …  "
-            "/max-turns N  /exit",
+            f"[bold]chatjimmy agent[/bold]  model={model}  mode={interaction_mode}  "
+            f"workspace={ws}\n"
+            "message  ·  /reset  /tools  /mode act|plan  /workspace <path>  "
+            "/system …  /max-turns N  /exit",
             border_style="magenta",
         )
     )
@@ -562,13 +575,25 @@ def _run_agent_repl(
         if user == "/tools":
             from chatjimmy_harness.tools import build_registry, tool_specs_prompt
 
-            console.print(tool_specs_prompt(build_registry(tools)))
+            console.print(
+                tool_specs_prompt(
+                    build_registry(tools, interaction_mode=interaction_mode)  # type: ignore[arg-type]
+                )
+            )
             continue
         if user == "/help":
             console.print(
-                "/reset  /tools  /workspace <path>  /system <text>  "
+                "/reset  /tools  /mode act|plan  /workspace <path>  /system <text>  "
                 "/max-turns <n>  /exit"
             )
+            continue
+        if user.startswith("/mode"):
+            raw = user[len("/mode") :].strip().lower()
+            if raw not in {"act", "plan"}:
+                err_console.print("[red]usage:[/red] /mode act|plan")
+                continue
+            interaction_mode = raw
+            console.print(f"[dim]mode={interaction_mode}[/dim]")
             continue
         if user.startswith("/workspace"):
             raw = user[len("/workspace") :].strip() or "."
@@ -597,6 +622,9 @@ def _run_agent_repl(
             continue
 
         on_step, _printed = _agent_on_step(quiet=False, json_out=False)
+        cfg = config_from_env(
+            HarnessConfig(interaction_mode=interaction_mode, max_turns=turns_cap)  # type: ignore[arg-type]
+        )
         result = run_agent(
             client,
             user,
@@ -610,12 +638,17 @@ def _run_agent_repl(
             command_timeout_s=command_timeout_s,
             on_step=on_step,
             messages=history,
+            config=cfg,
         )
         history = list(result.messages)
         if result.error:
             err_console.print(f"[yellow]{result.error}[/yellow]")
+        extra = ""
+        if result.compacted or result.repair_nudges:
+            extra = f" compact={result.compacted} repair={result.repair_nudges}"
         err_console.print(
-            f"[dim]turns={result.turns} tools={result.tool_calls} msgs={len(history)}[/dim]"
+            f"[dim]turns={result.turns} tools={result.tool_calls} "
+            f"msgs={len(history)}{extra}[/dim]"
         )
 
 
@@ -637,7 +670,12 @@ def agent(
     model: str = typer.Option(DEFAULT_MODEL, "--model", "-m"),
     system: str = typer.Option("", "--system", "-s"),
     top_k: int = typer.Option(8, "--top-k", "-k"),
-    max_turns: int = typer.Option(8, "--max-turns", min=1),
+    max_turns: int = typer.Option(12, "--max-turns", min=1),
+    mode: str = typer.Option(
+        "act",
+        "--mode",
+        help="Interaction mode: act (default) or plan (read-only)",
+    ),
     tool: Optional[list[str]] = typer.Option(
         None,
         "--tool",
@@ -661,15 +699,24 @@ def agent(
 ) -> None:
     """Tool-using agent. No prompt → interactive REPL; with prompt → one shot (or -i)."""
     from chatjimmy_harness.agent import parse_tool_call
+    from chatjimmy_harness.config import HarnessConfig, config_from_env
 
     # Only pull stdin as the task when explicitly "-" (keep stdin free for the REPL).
     if prompt == "-":
         prompt = _resolve_prompt("-")
 
+    if mode not in {"act", "plan"}:
+        err_console.print("[red]--mode must be act or plan[/red]")
+        raise typer.Exit(2)
+
     client = _client(ctx.obj["base_url"], ctx.obj["timeout"])
     tools = tool if tool else list(DEFAULT_TOOL_NAMES)
     if no_shell:
         tools = [t for t in tools if t not in {"run_shell", "run_python"}]
+
+    cfg = config_from_env(
+        HarnessConfig(interaction_mode=mode, max_turns=max_turns)  # type: ignore[arg-type]
+    )
 
     use_repl = interactive or (not prompt.strip() and not json_out)
     if use_repl:
@@ -687,6 +734,7 @@ def agent(
             allow_shell=not no_shell,
             command_timeout_s=timeout_cmd,
             first_prompt=prompt,
+            mode=mode,
         )
         return
 
@@ -709,6 +757,7 @@ def agent(
         allow_shell=not no_shell,
         command_timeout_s=timeout_cmd,
         on_step=on_step,
+        config=cfg,
     )
 
     if json_out:

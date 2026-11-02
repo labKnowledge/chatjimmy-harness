@@ -99,6 +99,26 @@ resp = client.chat(
 
 - `id`, `object`, `created`, `owned_by`
 
+## Agent loop
+
+```python
+from pathlib import Path
+from chatjimmy_harness.agent import run_agent
+from chatjimmy_harness.client import ChatJimmy
+from chatjimmy_harness.config import HarnessConfig
+
+cfg = HarnessConfig(interaction_mode="act", max_turns=10)
+result = run_agent(
+    ChatJimmy(),
+    "List files and summarize README.md",
+    workspace=Path("."),
+    config=cfg,
+)
+print(result.text, result.tool_calls, result.compacted)
+```
+
+See [harness.md](harness.md) for budgets, modes, and env knobs.
+
 ## Harness helpers
 
 ```python

@@ -109,7 +109,7 @@ class ChatJimmy:
         self.session = requests.Session()
         self.session.headers.update(
             {
-                "User-Agent": "chatjimmy-harness/0.0.5",
+                "User-Agent": "chatjimmy-harness/0.0.10",
                 "Content-Type": "application/json",
                 "Accept": "text/plain, */*",
             }

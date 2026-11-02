@@ -82,12 +82,15 @@ cj agent -i "list files" -w .
 | `-i` / `--interactive` | Multi-turn REPL (default when prompt is empty) |
 | `-w` / `--workspace` | Sandbox root for tools |
 | `-t` / `--tool` | Enable specific tools (repeatable) |
+| `--mode` | `act` (default) or `plan` (read-only) |
 | `--max-turns` | Max model↔tool iterations per user message |
 | `--no-shell` | Disable shell/python tools |
 | `--cmd-timeout` | Exec timeout |
 | `--json` / `-q` | One-shot machine / quiet output |
 
-REPL slash commands: `/reset` `/tools` `/workspace` `/system` `/max-turns` `/help` `/exit`
+REPL slash commands: `/reset` `/tools` `/mode act|plan` `/workspace` `/system` `/max-turns` `/help` `/exit`
+
+Harness knobs (budgets, compaction, repair): [harness.md](harness.md).
 
 ---
 

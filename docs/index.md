@@ -2,8 +2,6 @@
 
 CLI evaluation harness for [chatjimmy.ai](https://chatjimmy.ai) — a public Taalas demo running Llama 3.1 8B on HC1 silicon (~17k–20k+ tok/s decode).
 
-Client protocol adapted from [0xMH/chatjimmy-api](https://github.com/0xMH/chatjimmy-api) (MIT), with incremental streaming for the REPL and ask command.
-
 ## Contents
 
 | Doc | What it covers |
@@ -16,6 +14,7 @@ Client protocol adapted from [0xMH/chatjimmy-api](https://github.com/0xMH/chatji
 | [architecture.md](architecture.md) | Project layout, HTTP endpoints, streaming + stats trailer |
 | [limits.md](limits.md) | Auth, rate limits, token caps, known quirks |
 | [agent.md](agent.md) | Tool-using agent (files, shell, code, search) |
+| [harness.md](harness.md) | Config, budgets, act/plan modes, compaction, repair |
 | [dev.md](dev.md) | Develop / test / release this repo |
 | [versioning.md](versioning.md) | `0.0.N` bumps (+1 / +5) |
 
@@ -48,3 +47,8 @@ chatjimmy bench -n 5
 | `chatjimmy version` | Print harness version |
 
 Aliases: `chatjimmy`, `cj`, `cjh` — all invoke the same CLI.
+
+## Influence and learning from
+
+- [pingdotgg/t3code](https://github.com/pingdotgg/t3code) — agent harness control-plane patterns (budgets, modes, instruction sections, marked truncation)
+- [0xMH/chatjimmy-api](https://github.com/0xMH/chatjimmy-api) — ChatJimmy HTTP client protocol (MIT); this harness adds streaming, the CLI, and the local tool loop

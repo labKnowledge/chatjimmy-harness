@@ -8,6 +8,9 @@ chatjimmy-harness/
 ├── examples/                  # suites + sample workspaces
 ├── src/chatjimmy_harness/
 │   ├── client.py              # HTTP adapter
+│   ├── config.py              # harness knobs (budgets, modes)
+│   ├── instructions.py        # budgeted system-prompt sections
+│   ├── context.py             # prefill-aware history shaping
 │   ├── agent.py               # tool-call parse + agent loop (core)
 │   ├── harness.py             # suite/bench domain logic
 │   ├── tools/                 # local tool adapters (fs, edit, search, exec)
@@ -51,7 +54,7 @@ Base URL default: `https://chatjimmy.ai`
 
 `attachment`, when set: `{ "name", "size", "content" }` (string content).
 
-No authentication headers are required. Client sets `User-Agent: chatjimmy-harness/0.1` and `Content-Type: application/json`.
+No authentication headers are required. Client sets `User-Agent: chatjimmy-harness/<version>` and `Content-Type: application/json`.
 
 ### Chat response stream
 
@@ -69,15 +72,18 @@ The response body is plain text tokens, then a final trailer:
 CLI (cli.py)
   ├─ ask/chat ──► ChatJimmy (client.py) ──HTTP──► chatjimmy.ai
   ├─ agent ──► run_agent (agent.py)
-  │              ├─ parse <tool_call>
-  │              ├─ tools/* (workspace jail)
-  │              └─ feed result back into messages
+  │              ├─ config + instructions (budgeted system)
+  │              ├─ context.select (prefill compact)
+  │              ├─ parse <tool_call> (+ repair nudge)
+  │              ├─ tools/* (workspace jail, mode-filtered)
+  │              └─ feed truncated result back into messages
   └─ run/bench ──► harness.py (optional agent cases)
 ```
 
 ## Design notes
 
 - **Not a daemon** — the harness is a CLI; each invocation is a short-lived process.
+- **Capability is configuration** — budgets, modes, compaction, and repair live in `config` / `instructions` / `context`; see [harness.md](harness.md).
 - **Bare prompt** — `cli._rewrite_bare_prompt_argv` inserts `ask` when the first positional is not a known command.
 - **Stats on stderr** — `--stats` / `CHATJIMMY_STATS` print HC1 tables on stderr so piped stdout stays clean.
 - **Suite checks** — intentionally simple (substring / length); extend `harness.check_case`.

@@ -2,6 +2,8 @@
 
 ChatJimmy has no native function-calling API. The harness adds a **local tool loop**: the model emits a `<tool_call>`, the harness runs it in a workspace jail, feeds the result back, and repeats until a final answer (or `max_turns`).
 
+Capability on Llama 3.1 8B comes from **harness configuration** — budgets, modes, compaction, and repair. See [harness.md](harness.md).
+
 ## Quick start
 
 ```bash
@@ -10,17 +12,19 @@ cj -w examples/workspaces/hello_bug
 cj -p "What is 2+2?"              # one-shot print (no tools)
 cj tools                          # list tools
 cj agent "list files here" -w .   # one-shot tool task
+cj agent --mode plan "outline a fix for the flaky test"
 cj agent -i "list files" -w .     # one task, then stay in agent REPL
 ```
 
 ### Interactive REPL
 
-`cj` (or `cj agent`) opens a multi-turn session. Each message runs a tool loop; conversation history (including prior tool results) is kept.
+`cj` (or `cj agent`) opens a multi-turn session. Each message runs a tool loop; conversation history (including prior tool results) is kept. History is compacted automatically when it approaches the prefill budget.
 
 | Slash command | Action |
 |---------------|--------|
 | `/reset` | Clear history |
 | `/tools` | Show enabled tools |
+| `/mode act\|plan` | Switch interaction mode |
 | `/workspace <path>` | Switch sandbox root |
 | `/system <text>` | Set extra system prompt |
 | `/max-turns <n>` | Cap tool-loop turns per message |
@@ -29,20 +33,20 @@ cj agent -i "list files" -w .     # one task, then stay in agent REPL
 
 ## Built-in tools
 
-| Tool | Purpose |
-|------|---------|
-| `read_file` | Read a text file |
-| `write_file` | Create/overwrite a text file |
-| `list_dir` | List a directory |
-| `mkdir` | Create directories |
-| `delete_path` | Delete a file or empty directory |
-| `str_replace` | Exact substring edit |
-| `glob` | Find paths by glob |
-| `grep` | Regex search in files |
-| `run_shell` | Shell command (`cwd=workspace`) |
-| `run_python` | Run a Python snippet in the workspace |
+| Tool | Purpose | Plan mode |
+|------|---------|-----------|
+| `read_file` | Read a text file | yes |
+| `write_file` | Create/overwrite a text file | no |
+| `list_dir` | List a directory | yes |
+| `mkdir` | Create directories | no |
+| `delete_path` | Delete a file or empty directory | no |
+| `str_replace` | Exact substring edit | no |
+| `glob` | Find paths by glob | yes |
+| `grep` | Regex search in files | yes |
+| `run_shell` | Shell command (`cwd=workspace`) | no |
+| `run_python` | Run a Python snippet in the workspace | no |
 
-All file paths are **jailed** to `--workspace` (default `.`). Shell/python inherit that cwd. Use `--no-shell` to disable exec tools.
+All file paths are **jailed** to `--workspace` (default `.`). Shell/python inherit that cwd. Use `--no-shell` to disable exec tools. Put project guidance in `AGENTS.md` (or `.chatjimmy.md` / `CLAUDE.md`) at the workspace root — the harness injects it into the system prompt under a char budget.
 
 ## Tool-call format
 
@@ -63,13 +67,16 @@ JSON fallback is also parsed:
 ```
 ````
 
+Broken tool-shaped replies get a **format repair nudge** (default 2) instead of ending the turn.
+
 ## CLI flags
 
 | Flag | Meaning |
 |------|---------|
 | `-w` / `--workspace` | Sandbox root |
+| `--mode act\|plan` | Act (default) or read-only plan |
 | `-t` / `--tool` | Enable one tool (repeat); default all |
-| `--max-turns` | Cap model↔tool loops (default 8) |
+| `--max-turns` | Cap model↔tool loops (default 12) |
 | `--no-shell` | Drop `run_shell` / `run_python` |
 | `--cmd-timeout` | Exec timeout seconds |
 | `--json` | Full step trace |
@@ -113,5 +120,5 @@ Example suite: `examples/agent_tools.json`.
 ## Limits
 
 - Llama 3.1 8B is small — tool use is **best-effort**, not guaranteed. Prefer short tasks and clear prompts.
-- Prefill grows each turn (tool results accumulate). Stay under ~6k prefill ([limits.md](limits.md)).
+- Prefill grows each turn (tool results accumulate). The harness compacts history and truncates tool output with markers; stay under ~6k prefill ([limits.md](limits.md)).
 - Shell is powerful; keep workspaces disposable and prefer `--no-shell` for untrusted prompts.

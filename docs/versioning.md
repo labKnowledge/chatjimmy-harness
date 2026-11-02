@@ -15,4 +15,4 @@ Stay on the **`0.0.N`** line. Do not jump to `0.1.x` or `1.x` as a habit — kee
 
 ## Current
 
-**0.0.5** — default `cj` opens interactive agent; `-p` is one-shot print.
+**0.0.10** — harness config layer (budgets, act/plan modes, context compaction, tool-call repair, workspace `AGENTS.md`) sized for the ~6k prefill window.

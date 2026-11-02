@@ -4,8 +4,6 @@ CLI evaluation harness for [chatjimmy.ai](https://chatjimmy.ai) — Taalas HC1 r
 
 **Docs:** [docs/index.md](docs/index.md)
 
-Client protocol adapted from [0xMH/chatjimmy-api](https://github.com/0xMH/chatjimmy-api) (MIT), with incremental streaming for the REPL.
-
 ## Install
 
 ```bash
@@ -40,6 +38,7 @@ Aliases: `chatjimmy`, `cj`, `cjh` · versioning: [docs/versioning.md](docs/versi
 | [docs/install.md](docs/install.md) | Install on PATH |
 | [docs/cli.md](docs/cli.md) | CLI reference |
 | [docs/agent.md](docs/agent.md) | Tool-using agent |
+| [docs/harness.md](docs/harness.md) | Config, budgets, modes, compaction |
 | [docs/suites.md](docs/suites.md) | Eval suite format |
 | [docs/bench.md](docs/bench.md) | Benchmarking |
 | [docs/python-api.md](docs/python-api.md) | Python client |
@@ -51,3 +50,8 @@ Aliases: `chatjimmy`, `cj`, `cjh` · versioning: [docs/versioning.md](docs/versi
 ## License
 
 MIT
+
+## Influence and learning from
+
+- [pingdotgg/t3code](https://github.com/pingdotgg/t3code) — agent harness control-plane patterns (budgets, modes, instruction sections, marked truncation)
+- [0xMH/chatjimmy-api](https://github.com/0xMH/chatjimmy-api) — ChatJimmy HTTP client protocol (MIT); this harness adds streaming, the CLI, and the local tool loop

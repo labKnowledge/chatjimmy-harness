@@ -22,11 +22,16 @@ class ToolResult:
     output: str
     meta: dict[str, Any] = field(default_factory=dict)
 
-    def render(self, *, limit: int = 12_000) -> str:
+    def render(
+        self,
+        *,
+        limit: int = 4_000,
+        keep: str = "tail",
+    ) -> str:
+        from chatjimmy_harness.context import truncate_marked
+
         status = "ok" if self.ok else "error"
-        text = self.output if len(self.output) <= limit else (
-            self.output[:limit] + f"\n…[truncated {len(self.output) - limit} chars]"
-        )
+        text = truncate_marked(self.output, limit, keep=keep)
         return f"[{status}]\n{text}"
 
 
@@ -38,6 +43,9 @@ class ToolContext:
     allow_shell: bool = True
     command_timeout_s: float = 30.0
     max_read_bytes: int = 200_000
+    # When runtime_mode is approval-required, mutating tools still run but are logged.
+    require_approval: bool = False
+    approved_tools: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.workspace = self.workspace.resolve()
